@@ -3,10 +3,7 @@
 
 type Writable<T> = import('svelte/store').Writable<T>;
 
-interface User {
-	id: number;
-	name: string;
-}
+type User = import('@prisma/client').User;
 
 type NicePrimitive = number | string | null | undefined | Date | NiceObject;
 type NiceObject = { [k: string]: NicePrimitive | NicePrimitive[] };
