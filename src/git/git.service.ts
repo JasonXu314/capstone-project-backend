@@ -16,7 +16,13 @@ export class GitService {
 		// NOTE: don't use helper git function because this needs to have base dir as <cwd>/repos
 		const git = simpleGit('repos');
 
-		git.clone(url, to);
+		await git.clone(url, to);
+	}
+
+	public async pull(path: string): Promise<void> {
+		const git = this.git(path);
+
+		await git.pull();
 	}
 }
 
