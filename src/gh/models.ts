@@ -153,3 +153,9 @@ export interface CommitUserRecord {
 	username: string;
 }
 
+export interface PostAuthRecord {
+	code: string;
+	installation_id: string;
+	setup_action: 'install';
+}
+

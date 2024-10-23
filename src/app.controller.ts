@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpRedirectResponse, HttpStatus, Param, Post, Query, Redirect } from '@nestjs/common';
 import { Project } from '@prisma/client';
 import { AppService } from './app.service';
-import { PushRecord } from './gh/models';
+import { PostAuthRecord, PushRecord } from './gh/models';
 import { GitService } from './git/git.service';
 import { ProjectsService } from './projects/projects.service';
 
@@ -12,6 +12,15 @@ export class AppController {
 	@Get('/')
 	public getHello(): string {
 		return this.appService.getHello();
+	}
+
+	@Get('/auth')
+	@Redirect()
+	public async auth(@Query() { code }: PostAuthRecord): Promise<HttpRedirectResponse> {
+		return {
+			statusCode: HttpStatus.SEE_OTHER,
+			url: '/asdf'
+		};
 	}
 
 	@Post('/webhooks')

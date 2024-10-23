@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { init } from '@paralleldrive/cuid2';
 import { Project } from '@prisma/client';
-import { rmdirSync } from 'fs';
+import { rmSync } from 'fs';
 import { DBService } from 'src/db/db.service';
 import { GitService } from 'src/git/git.service';
 
@@ -41,7 +41,7 @@ export class ProjectsService {
 
 	public async deleteProject(id: string): Promise<void> {
 		await this.db.project.delete({ where: { id } });
-		rmdirSync(`repos/${id}`, { recursive: true });
+		rmSync(`repos/${id}`, { recursive: true, force: true });
 	}
 }
 
