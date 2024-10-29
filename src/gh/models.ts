@@ -1,5 +1,6 @@
 // NOTE: these are using interfaces because these are types we don't control, and thus don't want to validate
 export interface PushRecord {
+	action: 'push';
 	ref: string;
 	before: string;
 	after: string;
@@ -14,6 +15,10 @@ export interface PushRecord {
 	compare: string; // url
 	commits: CommitRecord[];
 	head_commit: CommitRecord;
+}
+
+export interface RemovedRecord {
+	action: 'removed';
 }
 
 export interface RepoRecord {
@@ -133,6 +138,32 @@ export interface InstallationRecord {
 	node_id: string;
 }
 
+export interface FullInstallationRecord {
+	id: number;
+	client_id: string;
+	account: GHUserRecord;
+	repository_selection: 'selected';
+	access_tokens_url: string;
+	repositories_url: string;
+	html_url: string;
+	app_id: number;
+	app_slug: string;
+	target_id: number;
+	target_type: string;
+	permissions: {
+		contents: 'write';
+		metadata: 'read';
+	};
+	events: ['push'];
+	created_at: string; // ISO datetime
+	updated_at: string; // ISO datetime
+	single_file_name: string | null;
+	has_multiple_single_files: boolean;
+	single_file_paths: string[];
+	suspended_by: string | null;
+	suspended_at: string | null;
+}
+
 export interface CommitRecord {
 	id: string;
 	tree_id: string;
@@ -153,9 +184,50 @@ export interface CommitUserRecord {
 	username: string;
 }
 
-export interface PostAuthRecord {
+export interface PostInstallRecord {
 	code: string;
 	installation_id: string;
 	setup_action: 'install';
+}
+
+export interface PostAuthRecord {
+	code: string;
+}
+
+export interface GHFullUser {
+	login: string;
+	id: number;
+	node_id: string;
+	avatar_url: string;
+	gravatar_id: string;
+	url: string;
+	html_url: string;
+	followers_url: string;
+	following_url: string;
+	gists_url: string;
+	starred_url: string;
+	subscriptions_url: string;
+	organizations_url: string;
+	repos_url: string;
+	events_url: string;
+	received_events_url: string;
+	type: 'User';
+	user_view_type: string;
+	site_admin: boolean;
+	name: string;
+	company: null;
+	blog: string;
+	location: string | null;
+	email: string | null;
+	hireable: string | null;
+	bio: string | null;
+	twitter_username: string | null;
+	notification_email: string | null;
+	public_repos: number;
+	public_gists: number;
+	followers: number;
+	following: number;
+	created_at: string; // ISO datetime
+	updated_at: string; // ISO datetime
 }
 
