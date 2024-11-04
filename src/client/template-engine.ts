@@ -7,7 +7,7 @@ const template = readFileSync('src/client/templates/page.html').toString();
 export function svelte(path: string, data: any, next: (e: any, rendered?: string) => void) {
 	const { props, __meta } = data;
 
-	import(/* @vite-ignore */ `${process.cwd()}/dist/client/routes/${__meta.route.slice(1)}.js`)
+	import(/* @vite-ignore */ `${process.cwd()}/dist/client/routes/${__meta.route}.js`)
 		.then(({ default: page }) => {
 			try {
 				const { html, head } = page.render(props, __meta);
@@ -22,7 +22,7 @@ export function svelte(path: string, data: any, next: (e: any, rendered?: string
 							'%SVELTE_HEAD%',
 							`${head}\n<script id="__init_script__">window.__INITIAL_PROPS=${initialProps};window.__ROUTE_META=${routeMeta}</script>`
 						)
-						.replace('%SVELTE_BODY%', `${html}\n<script type="module" src="/__app/${__meta.route.slice(1)}.js"></script>`)
+						.replace('%SVELTE_BODY%', `${html}\n<script type="module" src="/__app/${__meta.route}.js"></script>`)
 				);
 			} catch (err) {
 				console.error(err);

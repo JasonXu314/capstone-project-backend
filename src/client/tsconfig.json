@@ -17,12 +17,12 @@
 		"baseUrl": "../..",
 		"allowImportingTsExtensions": true,
 		"noEmit": true,
-		"importsNotUsedAsValues": "error",
+		"verbatimModuleSyntax": false,
 		"ignoreDeprecations": "5.0",
 		"paths": {
 			"$lib/*": ["src/client/lib/*"]
 		}
 	},
-	"include": ["./**/*.d.ts"]
+	"include": ["./**/*.d.ts", "./**/*.svelte"]
 }
 
