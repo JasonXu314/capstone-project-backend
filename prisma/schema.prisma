@@ -14,25 +14,36 @@ datasource db {
 }
 
 model User {
-    id              String @id
-    name            String
+    id String @id
+
     installation_id Int    @unique
     github_id       Int    @unique
     token           String @unique
+
+    name String
+
+    projects Project[]
 }
 
 model Project {
-    id           String        @id
-    name         String
-    url          String        @unique
+    id String @id
+
+    ownerId String @unique
+    url     String @unique
+
+    name String
+
+    owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
     ignoredPaths IgnoredPath[]
 }
 
 model IgnoredPath {
     id        Int
     projectId String
-    path      String
-    project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-    @@unique([id, projectId])
+    path String
+
+    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    @@id([id, projectId])
 }
