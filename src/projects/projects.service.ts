@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { init } from '@paralleldrive/cuid2';
-import { Project } from '@prisma/client';
+import { Project, User } from '@prisma/client';
 import { rmSync } from 'fs';
 import { DBService } from 'src/db/db.service';
 import { GitService } from 'src/git/git.service';
+import { CreateProjectDTO } from './dtos';
 
 @Injectable()
 export class ProjectsService {
@@ -13,12 +14,13 @@ export class ProjectsService {
 		this.cuid = init({ length: 16 });
 	}
 
-	public async createProject(name: string, url: string): Promise<Project> {
+	public async createProject(user: User, { name, url }: CreateProjectDTO): Promise<Project> {
 		const id = this.cuid();
 
 		const project = await this.db.project.create({
 			data: {
 				id,
+				owner: { connect: { id: user.id } },
 				name,
 				url
 			}

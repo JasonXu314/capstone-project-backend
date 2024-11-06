@@ -29,5 +29,12 @@ export class GHService {
 			)
 			.then((res) => res.data);
 	}
+
+	public async getRepos(installation: number) {
+		return this.gh
+			.getInstallationOctokit(installation)
+			.then((kit) => kit.rest.repos.listForAuthenticatedUser())
+			.then((res) => res.data);
+	}
 }
 
