@@ -33,8 +33,20 @@ export class GHService {
 	public async getRepos(installation: number) {
 		return this.gh
 			.getInstallationOctokit(installation)
-			.then((kit) => kit.rest.repos.listForAuthenticatedUser())
-			.then((res) => res.data);
+			.then((kit) => kit.rest.apps.listReposAccessibleToInstallation())
+			.then((res) => res.data.repositories);
+	}
+
+	public async getToken(installation: number) {
+		return this.gh.octokit.rest.apps.createInstallationAccessToken({ installation_id: installation }).then((res) => res.data.token);
+	}
+
+	public async relpaceFile(installation: number, owner: string, url: string, path: string, sha: string, content: string) {
+		const repo = url.split('/').at(-1)!;
+
+		return this.gh
+			.getInstallationOctokit(installation)
+			.then((kit) => kit.rest.repos.createOrUpdateFileContents({ owner, repo, path, message: 'Codeban automatic scan', sha, content: btoa(content) }));
 	}
 }
 
