@@ -1,17 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { init } from '@paralleldrive/cuid2';
-import { Project, User } from '@prisma/client';
-import { rmSync } from 'fs';
+import type { Prisma, Project, User } from '@prisma/client';
+import { existsSync, rmSync } from 'fs';
 import { DBService } from 'src/db/db.service';
+import { GHService } from 'src/gh/gh.service';
 import { GitService } from 'src/git/git.service';
 import { CreateProjectDTO } from './dtos';
+import { full, FullProject, SimpleProject } from './models';
 
 @Injectable()
 export class ProjectsService {
 	private readonly cuid: () => string;
 
-	public constructor(private readonly db: DBService, private readonly git: GitService) {
+	public constructor(private readonly db: DBService, private readonly gh: GHService, private readonly git: GitService) {
 		this.cuid = init({ length: 16 });
+	}
+
+	public async getAll(where: Prisma.ProjectWhereInput): Promise<SimpleProject[]> {
+		return this.db.project.findMany({ where });
+	}
+
+	public async get(where: Prisma.ProjectWhereUniqueInput): Promise<SimpleProject | null> {
+		return this.db.project.findUnique({ where });
+	}
+
+	public async getFull(where: Prisma.ProjectWhereUniqueInput): Promise<FullProject | null> {
+		return this.db.project.findUnique({ where, ...full });
 	}
 
 	public async createProject(user: User, { name, url }: CreateProjectDTO): Promise<Project> {
@@ -22,23 +36,26 @@ export class ProjectsService {
 				id,
 				owner: { connect: { id: user.id } },
 				name,
-				url
+				url,
+				collaborators: {
+					connect: { id: user.id }
+				}
 			}
 		});
 
-		await this.git.clone(url, id);
+		const token = await this.gh.getToken(user.installation_id);
+
+		await this.git.clone(url, id, token);
 
 		return project;
 	}
 
-	public async syncProject(url: string): Promise<void> {
-		const project = await this.db.project.findUnique({ where: { url }, select: { id: true } });
-
-		if (project === null) {
-			throw new Error('Nonexistent project');
-		} else {
-			return this.git.pull(project.id);
+	public async syncProject(id: string): Promise<void> {
+		if (!existsSync(`repos/${id}`)) {
+			throw new InternalServerErrorException(`Missing repo ${id}`);
 		}
+
+		return this.git.pull(id);
 	}
 
 	public async deleteProject(id: string): Promise<void> {
