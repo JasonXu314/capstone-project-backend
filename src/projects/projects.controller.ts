@@ -5,11 +5,36 @@ import { GHService } from 'src/gh/gh.service';
 import { TodosService } from 'src/todos/todos.service';
 import { User } from 'src/utils/decorators/user.decorator';
 import { CreateProjectDTO } from './dtos';
+import { type SimpleProject } from './models';
 import { ProjectsService } from './projects.service';
 
 @Controller('/projects')
 export class ProjectsController {
 	public constructor(private readonly service: ProjectsService, private readonly gh: GHService, private readonly todos: TodosService) {}
+
+	@Protected()
+	@Get('/')
+	public async getUserProjects(@User() user: UserT): Promise<(SimpleProject & { lastCommit: string; lastCommitter: string })[]> {
+		return this.service.getAll({ ownerId: user.id }).then((projects) =>
+			Promise.all(
+				projects.map(async (project) => {
+					const lastCommit = await this.gh.getLatestCommit(user.installation_id, user.name, project.url);
+
+					return {
+						...project,
+						lastCommit: lastCommit.commit.author?.date!,
+						lastCommitter: lastCommit.commit.author?.name!
+					};
+				})
+			)
+		);
+	}
+
+	@Protected()
+	@Get('/available')
+	public async getAvailableRepos(@User() user: UserT) {
+		return this.gh.getRepos(user.installation_id);
+	}
 
 	@Protected()
 	@Post('/new')

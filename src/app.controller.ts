@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, HttpRedirectResponse, HttpStatus, Param, Post, Query, Redirect } from '@nestjs/common';
-import { Project, User } from '@prisma/client';
 import { AppService } from './app.service';
 import { GHService } from './gh/gh.service';
-import { PostAuthRecord, PostInstallRecord, PushRecord } from './gh/models';
+import type { PostAuthRecord, PostInstallRecord, PushRecord } from './gh/models';
 import { GitService } from './git/git.service';
 import { ProjectsService } from './projects/projects.service';
+import { TodosService } from './todos/todos.service';
 import { UsersService } from './users/users.service';
 import { Page } from './utils/decorators/page.decorator';
 
@@ -15,7 +15,8 @@ export class AppController {
 		private readonly git: GitService,
 		private readonly projects: ProjectsService,
 		private readonly gh: GHService,
-		private readonly users: UsersService
+		private readonly users: UsersService,
+		private readonly todos: TodosService
 	) {}
 
 	@Page()
@@ -58,15 +59,15 @@ export class AppController {
 	}
 
 	@Post('/webhooks')
-	public test(@Body() body: PushRecord): void {
+	public async test(@Body() body: PushRecord): Promise<void> {
 		console.log(body.commits);
 		console.log('full body', body);
-		this.projects.syncProject(body.repository.url);
-	}
+		const project = await this.projects.get({ url: body.repository.url });
 
-	@Post('/clone')
-	public async clone(@Body('url') url: string, @Body('name') name: string): Promise<Project> {
-		return this.projects.createProject(name, url);
+		if (project) {
+			await this.projects.syncProject(project.id);
+			await this.todos.scanProject(project.id);
+		}
 	}
 
 	@Delete('/:id')

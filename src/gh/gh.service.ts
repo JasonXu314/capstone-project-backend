@@ -48,5 +48,15 @@ export class GHService {
 			.getInstallationOctokit(installation)
 			.then((kit) => kit.rest.repos.createOrUpdateFileContents({ owner, repo, path, message: 'Codeban automatic scan', sha, content: btoa(content) }));
 	}
+
+	public async getLatestCommit(installation: number, owner: string, url: string) {
+		const repo = url.split('/').at(-1)!;
+
+		return this.gh
+			.getInstallationOctokit(installation)
+			.then((kit) => Promise.all([kit, kit.rest.repos.get({ owner, repo }).then((res) => res.data.default_branch)]))
+			.then(([kit, ref]) => kit.rest.repos.getCommit({ owner, repo, ref }))
+			.then((res) => res.data);
+	}
 }
 
