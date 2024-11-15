@@ -1,7 +1,8 @@
 import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
-import type { Project, TodoItem, User as UserT } from '@prisma/client';
+import type { Project, User as UserT } from '@prisma/client';
 import { Protected } from 'src/auth/protected.decorator';
 import { GHService } from 'src/gh/gh.service';
+import { type TodoWithColor } from 'src/todos/models';
 import { TodosService } from 'src/todos/todos.service';
 import { User } from 'src/utils/decorators/user.decorator';
 import { CreateProjectDTO } from './dtos';
@@ -54,14 +55,19 @@ export class ProjectsController {
 
 	@Protected()
 	@Get('/:id/todos')
-	public async getTodos(@User() user: UserT, @Param('id') projectId: string): Promise<TodoItem[]> {
+	public async getTodos(@User() user: UserT, @Param('id') projectId: string): Promise<Record<string, TodoWithColor[]>> {
 		const project = await this.service.getFull({ id: projectId });
 
 		if (!project || !project.collaborators.some(({ id }) => id === user.id)) {
 			throw new NotFoundException('Project does not exist');
 		}
 
-		return this.todos.getAll({ projectId });
+		const all = await this.todos.getAllWithColor({ projectId });
+
+		return all.reduce<Record<string, TodoWithColor[]>>(
+			(record, todo) => (todo.type in record ? { ...record, [todo.type]: [...record[todo.type], todo] } : { ...record, [todo.type]: [todo] }),
+			{}
+		);
 	}
 }
 

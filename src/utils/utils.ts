@@ -66,6 +66,15 @@ export function serveClient(): DynamicModule[] {
 	];
 }
 
+// generate HSL color from warm spectrum, with 15deg padding margin
+export function generateUserColor(): string {
+	const h = Math.round(Math.random() * 150 + 15 + 180);
+	const s = 100;
+	const l = 50;
+
+	return `${h} ${s} ${l}`;
+}
+
 // generate HSL color from cool spectrum, with 15deg padding margin
 export function generateTypeColor(): string {
 	const h = Math.round(Math.random() * 150 + 15);
@@ -74,3 +83,4 @@ export function generateTypeColor(): string {
 
 	return `${h} ${s} ${l}`;
 }
+

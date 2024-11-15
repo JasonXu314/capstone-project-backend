@@ -8,6 +8,7 @@ import { FSService } from 'src/fs/fs.service';
 import { GHService } from 'src/gh/gh.service';
 import { full } from 'src/projects/models';
 import { generateTypeColor } from 'src/utils/utils';
+import { type TodoWithColor, withColor } from './models';
 
 const COMMENT_PREFIXES = ['#', '//', '%', '--', "'", ';'];
 const COMMENT_REGEXES = COMMENT_PREFIXES.map((prefix) => new RegExp(`^${prefix} (\\w+): (.+)$`));
@@ -23,6 +24,10 @@ export class TodosService {
 
 	public async getAll(where: Prisma.TodoItemWhereInput): Promise<TodoItem[]> {
 		return this.db.todoItem.findMany({ where });
+	}
+
+	public async getAllWithColor(where: Prisma.TodoItemWhereInput): Promise<TodoWithColor[]> {
+		return this.db.todoItem.findMany({ where, ...withColor });
 	}
 
 	public async scanProject(projectId: string): Promise<void> {

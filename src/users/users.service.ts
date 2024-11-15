@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { init } from '@paralleldrive/cuid2';
-import { User } from '@prisma/client';
+import type { User } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { AuthDataSource } from 'src/auth/auth.module';
 import { DBService } from 'src/db/db.service';
 import { GHFullUser } from 'src/gh/models';
+import { generateUserColor } from 'src/utils/utils';
 
 @Injectable()
 export class UsersService implements AuthDataSource {
@@ -23,7 +24,16 @@ export class UsersService implements AuthDataSource {
 	}
 
 	public async register(installation_id: number, ghUser: GHFullUser): Promise<User> {
-		return this.db.user.create({ data: { id: this.cuid(), installation_id, github_id: ghUser.id, name: ghUser.login, token: this.generateToken() } });
+		return this.db.user.create({
+			data: {
+				id: this.cuid(),
+				installation_id,
+				github_id: ghUser.id,
+				name: ghUser.login,
+				color: generateUserColor(),
+				token: this.generateToken()
+			}
+		});
 	}
 
 	public async login(ghUser: GHFullUser): Promise<User | null> {
