@@ -9,7 +9,9 @@ export const full = v({
 	include: {
 		ignoredPaths: true,
 		owner: true,
-		collaborators: true
+		collaborators: true,
+		todoTypes: true
 	}
 });
 export type FullProject = Prisma.ProjectGetPayload<typeof full>;
+

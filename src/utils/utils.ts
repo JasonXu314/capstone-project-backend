@@ -1,4 +1,4 @@
-import { DynamicModule } from '@nestjs/common';
+import { DynamicModule, NotFoundException } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 
 export function fi<T>(): T {
@@ -68,7 +68,7 @@ export function serveClient(): DynamicModule[] {
 
 // generate HSL color from warm spectrum, with 15deg padding margin
 export function generateUserColor(): string {
-	const h = Math.round(Math.random() * 150 + 15 + 180);
+	const h = Math.round(Math.random() * 150 + 15 + -90);
 	const s = 100;
 	const l = 50;
 
@@ -77,10 +77,54 @@ export function generateUserColor(): string {
 
 // generate HSL color from cool spectrum, with 15deg padding margin
 export function generateTypeColor(): string {
-	const h = Math.round(Math.random() * 150 + 15);
+	const h = Math.round(Math.random() * 150 + 15 + 90);
 	const s = 100;
 	const l = 50;
 
 	return `${h} ${s} ${l}`;
+}
+
+export function extractWhitespace(line: string): string {
+	let out = '';
+
+	for (let i = 0; i < line.length; i++) {
+		if (/^\w$/.test(line[i])) {
+			out += line[i];
+		} else {
+			return out;
+		}
+	}
+
+	return out;
+}
+
+export function commentPrefix(ext: string): string {
+	switch (ext) {
+		case 'js':
+		case 'ts':
+		case 'mjs':
+		case 'mts':
+		case 'jsx':
+		case 'tsx':
+		case 'java':
+		case 'c':
+		case 'cpp':
+		case 'cc':
+		case 'h':
+		case 'hpp':
+		case 'prisma':
+			return '//';
+		case 'py':
+		case 'sh':
+			return '#';
+		case 'asm':
+			return ';';
+		case 'sql':
+			return '--';
+		case 'm':
+			return '%';
+		default:
+			throw new NotFoundException(`Unrecognized file extension '${ext}'`);
+	}
 }
 
