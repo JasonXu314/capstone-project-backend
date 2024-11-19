@@ -20,7 +20,8 @@ model User {
     github_id       Int    @unique
     token           String @unique
 
-    name String
+    name  String
+    color String
 
     ownedProjects Project[]
     projects      Project[] @relation(name: "AccessTo")
@@ -56,8 +57,9 @@ model TodoItem {
     id        String
     projectId String
 
-    type    String
-    message String
+    type      String
+    message   String
+    completed Boolean
 
     typeData TodoType @relation(fields: [type, projectId], references: [name, projectId], onDelete: Cascade)
     project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)

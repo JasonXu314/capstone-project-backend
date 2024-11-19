@@ -41,12 +41,20 @@ export class GHService {
 		return this.gh.octokit.rest.apps.createInstallationAccessToken({ installation_id: installation }).then((res) => res.data.token);
 	}
 
-	public async relpaceFile(installation: number, owner: string, url: string, path: string, sha: string, content: string) {
+	public async relpaceFile(
+		installation: number,
+		owner: string,
+		url: string,
+		path: string,
+		sha: string,
+		content: string,
+		message: string = 'Codeban automatic scan'
+	) {
 		const repo = url.split('/').at(-1)!;
 
 		return this.gh
 			.getInstallationOctokit(installation)
-			.then((kit) => kit.rest.repos.createOrUpdateFileContents({ owner, repo, path, message: 'Codeban automatic scan', sha, content: btoa(content) }));
+			.then((kit) => kit.rest.repos.createOrUpdateFileContents({ owner, repo, path, message, sha, content: btoa(content) }));
 	}
 
 	public async getLatestCommit(installation: number, owner: string, url: string) {

@@ -9,7 +9,7 @@ export class FSService {
 		}
 	}
 
-	public *traverse(path: string, filter: (path: string) => boolean = () => true): Generator<string, void, never> {
+	public *traverse(path: string, filter: (path: string) => boolean = () => true): Generator<string, void, undefined> {
 		if (statSync(path).isDirectory()) {
 			const contents = readdirSync(path);
 
