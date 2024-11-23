@@ -10,7 +10,7 @@ export class AuthMiddleware implements NestMiddleware {
 	) {}
 
 	use(req: Request, _, next: NextFunction) {
-		const token = req.cookies[`${this.prefix}::token`];
+		const token = req.cookies[`${this.prefix}::token`] ?? req.query.token;
 
 		if (token !== undefined) {
 			req.token = token;
