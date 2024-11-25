@@ -1,16 +1,22 @@
-import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import type { Project, TodoType, User as UserT } from '@prisma/client';
 import { Protected } from 'src/auth/protected.decorator';
+import { FSService } from 'src/fs/fs.service';
 import { GHService } from 'src/gh/gh.service';
 import { TodosService } from 'src/todos/todos.service';
 import { User } from 'src/utils/decorators/user.decorator';
-import { CreateProjectDTO } from './dtos';
+import { AddTypeDTO, CreateProjectDTO } from './dtos';
 import { type SimpleProject } from './models';
 import { ProjectsService } from './projects.service';
 
 @Controller('/projects')
 export class ProjectsController {
-	public constructor(private readonly service: ProjectsService, private readonly gh: GHService, private readonly todos: TodosService) {}
+	public constructor(
+		private readonly service: ProjectsService,
+		private readonly gh: GHService,
+		private readonly fs: FSService,
+		private readonly todos: TodosService
+	) {}
 
 	@Protected()
 	@Get('/')
@@ -55,13 +61,53 @@ export class ProjectsController {
 	@Protected()
 	@Get('/:id/types')
 	public async getTypes(@User() user: UserT, @Param('id') projectId: string): Promise<TodoType[]> {
-		const project = await this.service.getFull({ id: projectId });
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
 
-		if (!project || !project.collaborators.some(({ id }) => id === user.id)) {
+		if (!project) {
 			throw new NotFoundException('Project does not exist');
 		}
 
 		return project.todoTypes;
+	}
+
+	@Protected()
+	@Get('/:id/collaborators')
+	public async getCollaborators(@User() user: UserT, @Param('id') projectId: string): Promise<Pick<UserT, 'id' | 'name' | 'color'>[]> {
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+
+		if (!project) {
+			throw new NotFoundException('Project does not exist');
+		}
+
+		return project.collaborators.map(({ id, name, color }) => ({ id, name, color })).filter((u) => u.id !== user.id);
+	}
+
+	@Protected()
+	@Post('/:id/types/new')
+	public async addType(@User() user: UserT, @Param('id') projectId: string, @Body() data: AddTypeDTO): Promise<TodoType[]> {
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+
+		if (!project) {
+			throw new NotFoundException('Project does not exist');
+		}
+
+		await this.service.addType(projectId, data);
+
+		return this.service.getFull({ id: projectId }).then((project) => project!.todoTypes);
+	}
+
+	@Protected()
+	@Delete('/:id/types/:name')
+	public async deleteType(@User() user: UserT, @Param('id') projectId: string, @Param('name') name: string): Promise<TodoType[]> {
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+
+		if (!project) {
+			throw new NotFoundException('Project does not exist');
+		}
+
+		await this.service.deleteType(projectId, name);
+
+		return this.service.getFull({ id: projectId }).then((project) => project!.todoTypes);
 	}
 }
 

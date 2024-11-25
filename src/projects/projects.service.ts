@@ -1,11 +1,12 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { init } from '@paralleldrive/cuid2';
 import type { Prisma, Project, User } from '@prisma/client';
 import { existsSync, rmSync } from 'fs';
 import { DBService } from 'src/db/db.service';
 import { GHService } from 'src/gh/gh.service';
 import { GitService } from 'src/git/git.service';
-import { CreateProjectDTO } from './dtos';
+import { generateTypeColor } from 'src/utils/utils';
+import { AddTypeDTO, CreateProjectDTO } from './dtos';
 import { full, FullProject, SimpleProject } from './models';
 
 @Injectable()
@@ -61,6 +62,20 @@ export class ProjectsService {
 	public async deleteProject(id: string): Promise<void> {
 		await this.db.project.delete({ where: { id } });
 		rmSync(`repos/${id}`, { recursive: true, force: true });
+	}
+
+	public async addType(id: string, data: AddTypeDTO): Promise<void> {
+		await this.db.todoType.create({ data: { project: { connect: { id } }, name: data.name, color: generateTypeColor() } });
+	}
+
+	public async deleteType(id: string, name: string): Promise<void> {
+		const todos = await this.db.todoItem.findMany({ where: { projectId: id, type: name } });
+
+		if (todos.length > 0) {
+			throw new BadRequestException('There are unresolved items of that type, resolve them first before deleting the type');
+		}
+
+		await this.db.todoType.delete({ where: { name_projectId: { projectId: id, name } } });
 	}
 }
 
