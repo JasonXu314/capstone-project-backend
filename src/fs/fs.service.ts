@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { FSNode, type FSTree } from './fs.model';
 
 @Injectable()
 export class FSService {
@@ -29,6 +30,36 @@ export class FSService {
 		}
 
 		return;
+	}
+
+	public tree(path: string, filter: (path: string) => boolean = () => true, root = path): FSTree {
+		if (statSync(path).isDirectory()) {
+			return {
+				name: path.split('/').at(-1)!,
+				metadata: { pathname: path.replace(`${root}/`, '') },
+				children: readdirSync(path).flatMap<FSNode>((elem) => {
+					if (filter(`${path}/${elem}`)) {
+						if (statSync(`${path}/${elem}`).isDirectory()) {
+							return [this.tree(`${path}/${elem}`, filter, root)];
+						} else {
+							return [
+								{
+									name: elem,
+									metadata: { pathname: `${path}/${elem}`.replace(`${root}/`, '') }
+								}
+							];
+						}
+					} else {
+						return [];
+					}
+				})
+			};
+		} else {
+			return {
+				name: path.split('/').at(-1)!,
+				metadata: { pathname: path.replace(`${root}/`, '') }
+			};
+		}
 	}
 }
 

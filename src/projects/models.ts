@@ -14,4 +14,3 @@ export const full = v({
 	}
 });
 export type FullProject = Prisma.ProjectGetPayload<typeof full>;
-

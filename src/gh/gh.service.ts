@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { App } from 'octokit';
 import { GHFullUser } from './models';
@@ -46,11 +47,13 @@ export class GHService {
 		owner: string,
 		url: string,
 		path: string,
-		sha: string,
+		current: string,
 		content: string,
 		message: string = 'Codeban automatic scan'
 	) {
 		const repo = url.split('/').at(-1)!;
+
+		const sha = createHash('sha1').update(`blob ${current.length}\0${current}`).digest().toString('hex');
 
 		return this.gh
 			.getInstallationOctokit(installation)

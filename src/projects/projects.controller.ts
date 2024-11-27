@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, NotFoundException, Param, Post } from '@nestjs/common';
 import type { Project, TodoType, User as UserT } from '@prisma/client';
+import { readFileSync } from 'fs';
 import { Protected } from 'src/auth/protected.decorator';
+import { type FSTree } from 'src/fs/fs.model';
 import { FSService } from 'src/fs/fs.service';
 import { GHService } from 'src/gh/gh.service';
 import { TodosService } from 'src/todos/todos.service';
@@ -108,6 +110,36 @@ export class ProjectsController {
 		await this.service.deleteType(projectId, name);
 
 		return this.service.getFull({ id: projectId }).then((project) => project!.todoTypes);
+	}
+
+	@Protected()
+	@Get('/:id/tree')
+	public async getProjectTree(@User() user: UserT, @Param('id') projectId: string): Promise<FSTree> {
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+
+		if (!project) {
+			throw new NotFoundException('Project does not exist');
+		}
+
+		return this.fs.tree(`repos/${projectId}`, (p) => !project.ignoredPaths.some(({ path }) => path === p));
+	}
+
+	@Protected()
+	@Get('/:id/tree/:path(*)')
+	@Header('Content-Type', 'text/plain')
+	public async getProjectFile(@User() user: UserT, @Param('id') projectId: string, @Param('path') path: string): Promise<string> {
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+
+		if (!project) {
+			throw new NotFoundException('Project does not exist');
+		}
+
+		try {
+			return readFileSync(`repos/${project.id}/${path}`).toString();
+		} catch (err) {
+			console.error(err);
+			throw new BadRequestException(`Path '${path}' in project ${project.id} does not exist`);
+		}
 	}
 }
 
