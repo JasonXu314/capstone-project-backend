@@ -26,12 +26,16 @@ export class UsersService implements AuthDataSource {
 	public async register(installation_id: number, ghUser: GHFullUser): Promise<User> {
 		return this.db.user.create({
 			data: {
-				id: this.cuid(),
 				installation_id,
-				github_id: ghUser.id,
 				name: ghUser.login,
 				color: generateUserColor(),
-				token: this.generateToken()
+				token: this.generateToken(),
+				ghRef: {
+					connectOrCreate: {
+						create: { id: ghUser.id, userId: this.cuid(), avatar: ghUser.avatar_url },
+						where: { id: ghUser.id }
+					}
+				}
 			}
 		});
 	}

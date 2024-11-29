@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Header, NotFoundException, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Logger, NotFoundException, Param, Post } from '@nestjs/common';
 import type { Project, TodoType, User as UserT } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { Protected } from 'src/auth/protected.decorator';
@@ -8,11 +8,13 @@ import { GHService } from 'src/gh/gh.service';
 import { TodosService } from 'src/todos/todos.service';
 import { User } from 'src/utils/decorators/user.decorator';
 import { AddTypeDTO, CreateProjectDTO } from './dtos';
-import { type SimpleProject } from './models';
+import { NonNullCollaborator, type SimpleProject } from './models';
 import { ProjectsService } from './projects.service';
 
 @Controller('/projects')
 export class ProjectsController {
+	private readonly logger = new Logger('Projects');
+
 	public constructor(
 		private readonly service: ProjectsService,
 		private readonly gh: GHService,
@@ -63,7 +65,7 @@ export class ProjectsController {
 	@Protected()
 	@Get('/:id/types')
 	public async getTypes(@User() user: UserT, @Param('id') projectId: string): Promise<TodoType[]> {
-		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { userId: user.id } } });
 
 		if (!project) {
 			throw new NotFoundException('Project does not exist');
@@ -74,20 +76,26 @@ export class ProjectsController {
 
 	@Protected()
 	@Get('/:id/collaborators')
-	public async getCollaborators(@User() user: UserT, @Param('id') projectId: string): Promise<Pick<UserT, 'id' | 'name' | 'color'>[]> {
-		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+	public async getCollaborators(
+		@User() user: UserT,
+		@Param('id') projectId: string
+	): Promise<(Pick<UserT, 'id' | 'name' | 'color'> & { avatar: string })[]> {
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { userId: user.id } } });
 
 		if (!project) {
 			throw new NotFoundException('Project does not exist');
 		}
 
-		return project.collaborators.map(({ id, name, color }) => ({ id, name, color })).filter((u) => u.id !== user.id);
+		return project.collaborators
+			.filter((u) => u.userId !== user.id)
+			.filter((u): u is NonNullCollaborator => u.user !== null)
+			.map(({ user: { id, name, color }, avatar }) => ({ id, name, color, avatar }));
 	}
 
 	@Protected()
 	@Post('/:id/types/new')
 	public async addType(@User() user: UserT, @Param('id') projectId: string, @Body() data: AddTypeDTO): Promise<TodoType[]> {
-		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { userId: user.id } } });
 
 		if (!project) {
 			throw new NotFoundException('Project does not exist');
@@ -101,7 +109,7 @@ export class ProjectsController {
 	@Protected()
 	@Delete('/:id/types/:name')
 	public async deleteType(@User() user: UserT, @Param('id') projectId: string, @Param('name') name: string): Promise<TodoType[]> {
-		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { userId: user.id } } });
 
 		if (!project) {
 			throw new NotFoundException('Project does not exist');
@@ -115,7 +123,7 @@ export class ProjectsController {
 	@Protected()
 	@Get('/:id/tree')
 	public async getProjectTree(@User() user: UserT, @Param('id') projectId: string): Promise<FSTree> {
-		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { userId: user.id } } });
 
 		if (!project) {
 			throw new NotFoundException('Project does not exist');
@@ -128,7 +136,7 @@ export class ProjectsController {
 	@Get('/:id/tree/:path(*)')
 	@Header('Content-Type', 'text/plain')
 	public async getProjectFile(@User() user: UserT, @Param('id') projectId: string, @Param('path') path: string): Promise<string> {
-		const project = await this.service.getFull({ id: projectId, collaborators: { some: { id: user.id } } });
+		const project = await this.service.getFull({ id: projectId, collaborators: { some: { userId: user.id } } });
 
 		if (!project) {
 			throw new NotFoundException('Project does not exist');

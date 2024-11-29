@@ -69,5 +69,14 @@ export class GHService {
 			.then(([kit, ref]) => kit.rest.repos.getCommit({ owner, repo, ref }))
 			.then((res) => res.data);
 	}
+
+	public async getCollaborators(installation: number, owner: string, url: string) {
+		const repo = url.split('/').at(-1)!;
+
+		return this.gh
+			.getInstallationOctokit(installation)
+			.then((kit) => kit.rest.repos.listCollaborators({ owner, repo }))
+			.then((res) => res.data);
+	}
 }
 

@@ -32,6 +32,8 @@ export class ProjectsService {
 	public async createProject(user: User, { name, url }: CreateProjectDTO): Promise<Project> {
 		const id = this.cuid();
 
+		const collaborators = await this.gh.getCollaborators(user.installation_id, user.name, url);
+
 		const project = await this.db.project.create({
 			data: {
 				id,
@@ -39,7 +41,10 @@ export class ProjectsService {
 				name,
 				url,
 				collaborators: {
-					connect: { id: user.id }
+					connectOrCreate: collaborators.map((ghUser) => ({
+						create: { id: ghUser.id, avatar: ghUser.avatar_url },
+						where: { id: ghUser.id }
+					}))
 				}
 			}
 		});
@@ -69,7 +74,7 @@ export class ProjectsService {
 	}
 
 	public async deleteType(id: string, name: string): Promise<void> {
-		const todos = await this.db.todoItem.findMany({ where: { projectId: id, type: name } });
+		const todos = await this.db.todoItem.findMany({ where: { projectId: id, type: name, completed: false } });
 
 		if (todos.length > 0) {
 			throw new BadRequestException('There are unresolved items of that type, resolve them first before deleting the type');

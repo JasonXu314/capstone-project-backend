@@ -24,7 +24,21 @@ model User {
     color String
 
     ownedProjects Project[]
-    projects      Project[] @relation(name: "AccessTo")
+    ghRef         GHUserRef        @relation(fields: [id, github_id], references: [userId, id])
+    assignments   TodoAssignment[]
+
+    @@unique([id, github_id])
+}
+
+model GHUserRef {
+    id     Int     @id
+    userId String?
+    avatar String
+
+    user     User?
+    projects Project[] @relation(name: "AccessTo")
+
+    @@unique([userId, id])
 }
 
 model Project {
@@ -36,7 +50,7 @@ model Project {
     name String
 
     owner         User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-    collaborators User[]        @relation(name: "AccessTo")
+    collaborators GHUserRef[]   @relation(name: "AccessTo")
     ignoredPaths  IgnoredPath[]
     todos         TodoItem[]
     todoTypes     TodoType[]
@@ -61,8 +75,9 @@ model TodoItem {
     message   String
     completed Boolean
 
-    typeData TodoType @relation(fields: [type, projectId], references: [name, projectId], onDelete: Cascade)
-    project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    typeData    TodoType         @relation(fields: [type, projectId], references: [name, projectId], onDelete: Cascade)
+    project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    assignments TodoAssignment[]
 
     @@id([id, projectId])
 }
@@ -77,4 +92,16 @@ model TodoType {
     todos   TodoItem[]
 
     @@id([name, projectId])
+}
+
+model TodoAssignment {
+    projectId String
+    todoId    String
+
+    userId String
+
+    todo TodoItem @relation(fields: [projectId, todoId], references: [projectId, id])
+    user User     @relation(fields: [userId], references: [id])
+
+    @@id([projectId, todoId, userId])
 }
