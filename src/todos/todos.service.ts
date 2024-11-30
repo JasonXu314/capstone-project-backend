@@ -1,19 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { init } from '@paralleldrive/cuid2';
 import type { Prisma, Project, TodoItem, User } from '@prisma/client';
-import { createHash } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { DBService } from 'src/db/db.service';
 import { FSService } from 'src/fs/fs.service';
 import { GHService } from 'src/gh/gh.service';
 import { full, FullProject } from 'src/projects/models';
 import { commentPrefix, extractWhitespace, generateTypeColor } from 'src/utils/utils';
-import { EditTodoDTO, NewTodoDTO } from './dtos';
+import { EditTodoDTO, NewTodoDTO, SetAssigneesDTO } from './dtos';
 import { type TodoWithColor, withColor } from './models';
 
 const COMMENT_PREFIXES = ['#', '//', '%', '--', "'", ';'];
-const COMMENT_REGEXES = COMMENT_PREFIXES.map((prefix) => new RegExp(`^${prefix} (\\w+): (.+)$`));
-const COMMENT_REGEXES_WITH_ID = COMMENT_PREFIXES.map((prefix) => new RegExp(`^${prefix} (\\w+): \\[([a-z0-9]{8})\\] (.+)$`));
+const COMMENT_REGEXES = COMMENT_PREFIXES.map((prefix) => new RegExp(`^\\s*${prefix} ([^:]+): (.+)$`));
+const COMMENT_REGEXES_WITH_ID = COMMENT_PREFIXES.map((prefix) => new RegExp(`^\\s*${prefix} ([^:]+): \\[([a-z0-9]{8})\\] (.+)$`));
+const COMMENT_REGEXES_COMPLETED = COMMENT_PREFIXES.map((prefix) => new RegExp(`^\\s*${prefix} ([^:]+): \\[\\^([a-z0-9]{8})\\] (.+)$`));
 
 @Injectable()
 export class TodosService {
@@ -23,12 +23,20 @@ export class TodosService {
 		this.cuid = init({ length: 8 });
 	}
 
+	public async getWithColor(where: Prisma.TodoItemWhereUniqueInput): Promise<TodoWithColor | null> {
+		return this.db.todoItem
+			.findUnique({ where, ...withColor })
+			.then((todo) => (todo === null ? todo : { ...todo, assignees: todo.assignments.map((a) => a.user).filter((u) => u !== null) }));
+	}
+
 	public async getAll(where: Prisma.TodoItemWhereInput): Promise<TodoItem[]> {
 		return this.db.todoItem.findMany({ where });
 	}
 
 	public async getAllWithColor(where: Prisma.TodoItemWhereInput): Promise<TodoWithColor[]> {
-		return this.db.todoItem.findMany({ where, ...withColor });
+		return this.db.todoItem
+			.findMany({ where, ...withColor })
+			.then((todos) => todos.map((todo) => ({ ...todo, assignees: todo.assignments.map((a) => a.user).filter((u) => u !== null) })));
 	}
 
 	public async create(data: Omit<Prisma.TodoItemCreateInput, 'id'>): Promise<TodoItem> {
@@ -43,7 +51,7 @@ export class TodosService {
 		} = (await this.db.project.findUnique({ where: { id: projectId }, ...full }))!;
 		const ignored = ignoredPaths
 			.map(({ path }) => path)
-			.concat('.git')
+			.concat('.git', '.github')
 			.map((path) => `repos/${projectId}/${path}`);
 
 		const existingTodos = await this.db.todoItem.findMany({ where: { projectId } });
@@ -61,14 +69,103 @@ export class TodosService {
 				let match: RegExpMatchArray | null = null;
 
 				if (matchIdx !== -1) {
-					if ((match = COMMENT_REGEXES_WITH_ID[matchIdx].exec(ln)) !== null) {
+					if ((match = COMMENT_REGEXES_COMPLETED[matchIdx].exec(ln)) !== null) {
 						// existing todo in system (supposedly)
 						const [, type, id, message] = match;
 
-						const existing = existingTodos.find((todo) => todo.id === id);
+						if (!/\s/.test(type) || type.length <= 24) {
+							const existing = existingTodos.find((todo) => todo.id === id);
 
-						if (!existing) {
-							// create with supplied ID
+							if (!existing) {
+								// create with supplied ID
+								await this.db.todoItem.create({
+									data: {
+										id,
+										message,
+										completed: true,
+										typeData: {
+											connectOrCreate: {
+												where: { name_projectId: { name: type, projectId } },
+												create: { name: type, color: generateTypeColor(), project: { connect: { id: projectId } } }
+											}
+										},
+										project: { connect: { id: projectId } }
+									}
+								});
+							} else {
+								if (existing.type !== type || existing.message !== message) {
+									await this.db.todoItem.update({
+										where: { id_projectId: { projectId, id } },
+										data: {
+											message,
+											completed: true,
+											typeData: {
+												connectOrCreate: {
+													where: { name_projectId: { name: type, projectId } },
+													create: { name: type, color: generateTypeColor(), project: { connect: { id: projectId } } }
+												}
+											}
+										}
+									});
+								}
+
+								found.add(existing);
+							}
+						}
+
+						newLines.push(line);
+					} else if ((match = COMMENT_REGEXES_WITH_ID[matchIdx].exec(ln)) !== null) {
+						// existing todo in system (supposedly)
+						const [, type, id, message] = match;
+
+						if (!/\s/.test(type) || type.length <= 24) {
+							const existing = existingTodos.find((todo) => todo.id === id);
+
+							if (!existing) {
+								// create with supplied ID
+								await this.db.todoItem.create({
+									data: {
+										id,
+										message,
+										completed: false,
+										typeData: {
+											connectOrCreate: {
+												where: { name_projectId: { name: type, projectId } },
+												create: { name: type, color: generateTypeColor(), project: { connect: { id: projectId } } }
+											}
+										},
+										project: { connect: { id: projectId } }
+									}
+								});
+							} else {
+								if (existing.type !== type || existing.message !== message) {
+									await this.db.todoItem.update({
+										where: { id_projectId: { projectId, id } },
+										data: {
+											message,
+											typeData: {
+												connectOrCreate: {
+													where: { name_projectId: { name: type, projectId } },
+													create: { name: type, color: generateTypeColor(), project: { connect: { id: projectId } } }
+												}
+											}
+										}
+									});
+								}
+
+								found.add(existing);
+							}
+						}
+
+						newLines.push(line);
+					} else {
+						// new todo, add ID
+						match = COMMENT_REGEXES[matchIdx].exec(ln)!;
+						const [, type, message] = match;
+
+						if (!/\s/.test(type) || type.length <= 24) {
+							const id = this.cuid();
+
 							await this.db.todoItem.create({
 								data: {
 									id,
@@ -83,49 +180,12 @@ export class TodosService {
 									project: { connect: { id: projectId } }
 								}
 							});
+
+							const preIdIdx = line.indexOf(COMMENT_PREFIXES[matchIdx]) + COMMENT_PREFIXES[matchIdx].length + 1 + type.length + 2;
+							newLines.push(line.slice(0, preIdIdx) + `[${id}] ` + line.slice(preIdIdx));
 						} else {
-							if (existing.type !== type || existing.message !== message) {
-								await this.db.todoItem.update({
-									where: { id_projectId: { projectId, id } },
-									data: {
-										message,
-										typeData: {
-											connectOrCreate: {
-												where: { name_projectId: { name: type, projectId } },
-												create: { name: type, color: generateTypeColor(), project: { connect: { id: projectId } } }
-											}
-										}
-									}
-								});
-							}
-
-							found.add(existing);
+							newLines.push(line);
 						}
-
-						newLines.push(line);
-					} else {
-						// new todo, add ID
-						match = COMMENT_REGEXES[matchIdx].exec(ln)!;
-						const [, type, message] = match;
-						const id = this.cuid();
-
-						await this.db.todoItem.create({
-							data: {
-								id,
-								message,
-								completed: false,
-								typeData: {
-									connectOrCreate: {
-										where: { name_projectId: { name: type, projectId } },
-										create: { name: type, color: generateTypeColor(), project: { connect: { id: projectId } } }
-									}
-								},
-								project: { connect: { id: projectId } }
-							}
-						});
-
-						const preIdIdx = line.indexOf(COMMENT_PREFIXES[matchIdx]) + COMMENT_PREFIXES[matchIdx].length + 1 + type.length + 2;
-						newLines.push(line.slice(0, preIdIdx) + `[${id}] ` + line.slice(preIdIdx));
 					}
 				} else {
 					newLines.push(line);
@@ -135,9 +195,7 @@ export class TodosService {
 			const newContents = newLines.join('\n');
 
 			if (newContents !== contents) {
-				const hash = createHash('sha1').update(`blob ${contents.length}\0${contents}`).digest().toString('hex');
-
-				await this.gh.relpaceFile(installation_id, name, url, path.split('/').slice(2).join('/'), hash, newContents);
+				await this.gh.relpaceFile(installation_id, name, url, path.split('/').slice(2).join('/'), contents, newContents);
 			}
 		}
 
@@ -178,9 +236,8 @@ export class TodosService {
 		lines.splice(data.ln, 0, `${wsPrefix}${commentPrefix(path.split('.').at(-1)!)} ${data.type}: [${id}] ${data.message}`);
 
 		const updated = lines.join('\n');
-		const hash = createHash('sha1').update(`blob ${current.length}\0${current}`).digest().toString('hex');
 
-		await this.gh.relpaceFile(user.installation_id, user.name, project.url, data.file, hash, updated, 'Todo item manual creation');
+		await this.gh.relpaceFile(user.installation_id, user.name, project.url, data.file, current, updated, 'Todo item manual creation');
 	}
 
 	public async deleteTodo(project: FullProject, user: User, id: string): Promise<void> {
@@ -189,14 +246,19 @@ export class TodosService {
 	}
 
 	public async completeTodo(project: FullProject, user: User, id: string): Promise<void> {
-		await this.removeTodoComment(project, user, id);
+		await this.setTodoCommentCompleted(project, user, id, true);
 		await this.db.todoItem.update({ where: { id_projectId: { id, projectId: project.id } }, data: { completed: true } });
+	}
+
+	public async uncompleteTodo(project: FullProject, user: User, id: string): Promise<void> {
+		await this.setTodoCommentCompleted(project, user, id, false);
+		await this.db.todoItem.update({ where: { id_projectId: { id, projectId: project.id } }, data: { completed: false } });
 	}
 
 	public async removeTodoComment(project: FullProject, user: User, todoId: string): Promise<void> {
 		const ignored = project.ignoredPaths
 			.map(({ path }) => path)
-			.concat('.git')
+			.concat('.git', '.github')
 			.map((path) => `repos/${project.id}/${path}`);
 
 		for (const path of this.fs.traverse(`repos/${project.id}`, (path) => !ignored.includes(path))) {
@@ -226,9 +288,15 @@ export class TodosService {
 			const newContents = newLines.join('\n');
 
 			if (newContents !== contents) {
-				const hash = createHash('sha1').update(`blob ${contents.length}\0${contents}`).digest().toString('hex');
-
-				await this.gh.relpaceFile(user.installation_id, user.name, project.url, path.split('/').slice(2).join('/'), hash, newContents);
+				await this.gh.relpaceFile(
+					user.installation_id,
+					user.name,
+					project.url,
+					path.split('/').slice(2).join('/'),
+					contents,
+					newContents,
+					'Todo item manual deletion'
+				);
 
 				return;
 			}
@@ -237,10 +305,10 @@ export class TodosService {
 		// TODO: consider throwing bad request or not found?
 	}
 
-	public async editTodo(project: FullProject, user: User, todoId: string, data: EditTodoDTO): Promise<void> {
+	public async setTodoCommentCompleted(project: FullProject, user: User, todoId: string, completed: boolean): Promise<void> {
 		const ignored = project.ignoredPaths
 			.map(({ path }) => path)
-			.concat('.git')
+			.concat('.git', '.github')
 			.map((path) => `repos/${project.id}/${path}`);
 
 		for (const path of this.fs.traverse(`repos/${project.id}`, (path) => !ignored.includes(path))) {
@@ -256,13 +324,66 @@ export class TodosService {
 
 				if (matchIdx !== -1) {
 					if ((match = COMMENT_REGEXES_WITH_ID[matchIdx].exec(ln)) !== null) {
-						const [, , id, message] = match;
+						const [, , id] = match;
 
 						if (id === todoId) {
-							if ('message' in data) {
+							newLines.push(completed ? line.replace(`[${id}]`, `[^${id}]`) : line.replace(`[^${id}]`, `[${id}]`));
+						} else {
+							newLines.push(line);
+						}
+					}
+				} else {
+					newLines.push(line);
+				}
+			}
+
+			const newContents = newLines.join('\n');
+
+			if (newContents !== contents) {
+				await this.gh.relpaceFile(
+					user.installation_id,
+					user.name,
+					project.url,
+					path.split('/').slice(2).join('/'),
+					contents,
+					newContents,
+					'Todo item toggle completion'
+				);
+				return;
+			}
+		}
+
+		// TODO: consider throwing bad request or not found?
+	}
+
+	public async editTodo(project: FullProject, user: User, todoId: string, data: EditTodoDTO): Promise<void> {
+		const ignored = project.ignoredPaths
+			.map(({ path }) => path)
+			.concat('.git', '.github')
+			.map((path) => `repos/${project.id}/${path}`);
+
+		for (const path of this.fs.traverse(`repos/${project.id}`, (path) => !ignored.includes(path))) {
+			const contents = readFileSync(path).toString();
+			const lines = contents.split('\n');
+
+			const newLines: string[] = [];
+
+			for (const line of lines) {
+				const ln = line.trim();
+				const matchIdx = COMMENT_REGEXES.findIndex((regex) => regex.test(ln));
+				let match: RegExpMatchArray | null = null;
+
+				if (matchIdx !== -1) {
+					if ((match = COMMENT_REGEXES_WITH_ID[matchIdx].exec(ln)) !== null) {
+						const [, type, id, message] = match;
+
+						if (id === todoId) {
+							if ('message' in data && 'type' in data) {
+								newLines.push(line.replace(message, data.message!).replace(`${type}:`, `${data.type!}:`));
+							} else if ('message' in data) {
 								newLines.push(line.replace(message, data.message!));
 							} else {
-								newLines.push(line);
+								newLines.push(line.replace(`${type}:`, `${data.type!}:`));
 							}
 						} else {
 							newLines.push(line);
@@ -276,15 +397,37 @@ export class TodosService {
 			const newContents = newLines.join('\n');
 
 			if (newContents !== contents) {
-				const hash = createHash('sha1').update(`blob ${contents.length}\0${contents}`).digest().toString('hex');
-
 				await this.db.todoItem.update({ where: { id_projectId: { id: todoId, projectId: project.id } }, data });
-				await this.gh.relpaceFile(user.installation_id, user.name, project.url, path.split('/').slice(2).join('/'), hash, newContents);
+				await this.gh.relpaceFile(
+					user.installation_id,
+					user.name,
+					project.url,
+					path.split('/').slice(2).join('/'),
+					contents,
+					newContents,
+					'Todo item manual edit'
+				);
 				return;
 			}
 		}
 
 		// TODO: consider throwing bad request or not found?
+	}
+
+	public async setAssignees(project: FullProject, id: string, { assigneeIds }: SetAssigneesDTO): Promise<void> {
+		if (assigneeIds.some((assigneeId) => !project.collaborators.some((user) => user.userId === assigneeId))) {
+			throw new BadRequestException('One or more assigned user is not a collaborator on the project');
+		}
+
+		console.log(project, assigneeIds);
+		await this.db.todoAssignment.deleteMany({ where: { projectId: project.id, todoId: id } });
+		console.log('deleted');
+		await this.db.todoAssignment.createMany({ data: assigneeIds.map((userId) => ({ projectId: project.id, todoId: id, userId })) });
+		// await this.db.todoItem.update({
+		// 	where: { id_projectId: { projectId: project.id, id } },
+		// 	data: { assignments: { createMany: { data: assigneeIds.map((userId) => ({ userId })) } } }
+		// });
+		console.log('updated');
 	}
 }
 

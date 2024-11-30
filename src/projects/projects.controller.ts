@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Header, Logger, NotFoundException, Param, Post } from '@nestjs/common';
-import type { Project, TodoType, User as UserT } from '@prisma/client';
+import type { TodoType, User as UserT } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { Protected } from 'src/auth/protected.decorator';
 import { type FSTree } from 'src/fs/fs.model';
@@ -48,7 +48,7 @@ export class ProjectsController {
 
 	@Protected()
 	@Post('/new')
-	public async clone(@User() user: UserT, @Body() data: CreateProjectDTO): Promise<Project> {
+	public async clone(@User() user: UserT, @Body() data: CreateProjectDTO): Promise<SimpleProject & { lastCommit: string; lastCommitter: string }> {
 		const available = await this.gh.getRepos(user.installation_id);
 
 		if (available.some((repo) => repo.html_url === data.url)) {
@@ -56,7 +56,13 @@ export class ProjectsController {
 
 			await this.todos.scanProject(project.id);
 
-			return project;
+			const lastCommit = await this.gh.getLatestCommit(user.installation_id, user.name, project.url);
+
+			return {
+				...project,
+				lastCommit: lastCommit.commit.author?.date!,
+				lastCommitter: lastCommit.commit.author?.name!
+			};
 		} else {
 			throw new NotFoundException('Repo does not exist or installation is not authorized to access repo');
 		}
@@ -129,7 +135,12 @@ export class ProjectsController {
 			throw new NotFoundException('Project does not exist');
 		}
 
-		return this.fs.tree(`repos/${projectId}`, (p) => !project.ignoredPaths.some(({ path }) => path === p));
+		const ignored = project.ignoredPaths
+			.map(({ path }) => path)
+			.concat('.git', '.github')
+			.map((path) => `repos/${project.id}/${path}`);
+
+		return this.fs.tree(`repos/${projectId}`, (p) => !ignored.includes(p));
 	}
 
 	@Protected()

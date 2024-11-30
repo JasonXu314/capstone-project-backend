@@ -24,20 +24,39 @@ export class UsersService implements AuthDataSource {
 	}
 
 	public async register(installation_id: number, ghUser: GHFullUser): Promise<User> {
-		return this.db.user.create({
-			data: {
-				installation_id,
-				name: ghUser.login,
-				color: generateUserColor(),
-				token: this.generateToken(),
-				ghRef: {
-					connectOrCreate: {
-						create: { id: ghUser.id, userId: this.cuid(), avatar: ghUser.avatar_url },
-						where: { id: ghUser.id }
+		const id = this.cuid();
+
+		const existing = await this.db.gHUserRef.findUnique({ where: { id: ghUser.id } });
+
+		if (existing) {
+			await this.db.gHUserRef.update({ where: { id: ghUser.id }, data: { userId: id } });
+			return this.db.user.create({
+				data: {
+					id,
+					github_id: ghUser.id,
+					installation_id,
+					name: ghUser.login,
+					color: generateUserColor(),
+					token: this.generateToken()
+				}
+			});
+		} else {
+			return this.db.user.create({
+				data: {
+					installation_id,
+					name: ghUser.login,
+					color: generateUserColor(),
+					token: this.generateToken(),
+					ghRef: {
+						create: {
+							id: ghUser.id,
+							userId: this.cuid(),
+							avatar: ghUser.avatar_url
+						}
 					}
 				}
-			}
-		});
+			});
+		}
 	}
 
 	public async login(ghUser: GHFullUser): Promise<User | null> {

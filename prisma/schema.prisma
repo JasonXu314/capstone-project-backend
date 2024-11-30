@@ -44,7 +44,7 @@ model GHUserRef {
 model Project {
     id String @id
 
-    ownerId String @unique
+    ownerId String
     url     String @unique
 
     name String
@@ -100,7 +100,7 @@ model TodoAssignment {
 
     userId String
 
-    todo TodoItem @relation(fields: [projectId, todoId], references: [projectId, id])
+    todo TodoItem @relation(fields: [projectId, todoId], references: [projectId, id], onDelete: Cascade)
     user User     @relation(fields: [userId], references: [id])
 
     @@id([projectId, todoId, userId])

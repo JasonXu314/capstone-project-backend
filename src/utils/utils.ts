@@ -88,7 +88,7 @@ export function extractWhitespace(line: string): string {
 	let out = '';
 
 	for (let i = 0; i < line.length; i++) {
-		if (/^\w$/.test(line[i])) {
+		if (/^\s$/.test(line[i])) {
 			out += line[i];
 		} else {
 			return out;
@@ -113,9 +113,15 @@ export function commentPrefix(ext: string): string {
 		case 'h':
 		case 'hpp':
 		case 'prisma':
+		case 'rs':
+		case 'kt':
+		case 'go':
+		case 'cbon':
 			return '//';
 		case 'py':
 		case 'sh':
+		case 'r':
+		case 'rb':
 			return '#';
 		case 'asm':
 			return ';';

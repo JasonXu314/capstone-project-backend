@@ -7,12 +7,19 @@ export type SimpleTodo = Prisma.TodoItemGetPayload<typeof simple>;
 
 export const withColor = v({
 	include: {
-		typeData: {
-			select: {
-				color: true
+		assignments: {
+			include: {
+				user: {
+					select: {
+						id: true,
+						color: true,
+						name: true
+					}
+				}
 			}
 		}
 	}
 });
-export type TodoWithColor = Prisma.TodoItemGetPayload<typeof withColor>;
+export type RawTodoWithColor = Prisma.TodoItemGetPayload<typeof withColor>;
+export type TodoWithColor = Omit<RawTodoWithColor, 'assignments'> & { assignees: RawTodoWithColor['assignments'][0]['user'][] };
 

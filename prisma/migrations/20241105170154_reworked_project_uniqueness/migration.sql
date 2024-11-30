@@ -19,8 +19,5 @@ ALTER TABLE `IgnoredPath` DROP PRIMARY KEY,
 ALTER TABLE `Project` DROP PRIMARY KEY,
     ADD PRIMARY KEY (`id`);
 
--- CreateIndex
-CREATE UNIQUE INDEX `Project_ownerId_key` ON `Project`(`ownerId`);
-
 -- AddForeignKey
 ALTER TABLE `IgnoredPath` ADD CONSTRAINT `IgnoredPath_projectId_fkey` FOREIGN KEY (`projectId`) REFERENCES `Project`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

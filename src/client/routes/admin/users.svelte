@@ -6,8 +6,8 @@
 <table>
 	<thead>
 		<tr>
-			<th scope="col">Github ID</th>
 			<th scope="col">ID</th>
+			<th scope="col">Github ID</th>
 			<th scope="col">Installation ID</th>
 			<th scope="col">Name</th>
 			<th scope="col">Token</th>
